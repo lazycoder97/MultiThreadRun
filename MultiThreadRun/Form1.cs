@@ -3,17 +3,18 @@ using System.Windows.Forms;
 using System.IO;
 using System.Diagnostics;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace MultiThreadRun
 {
     public partial class Form1 : Form
     {
-        const ulong ensuranceMem = 314572800;   // The amount of available memory to leave out
+        const ulong ensuranceMemory = 314572800;   // The amount of available memory to leave out
 
         ConcurrentQueue<string> cmdQueue;
         Process[] processes;
         string workingDir;
-        int endCheckCount = 0;
+        int endCheckCount;
 
         public Form1()
         {
@@ -32,6 +33,9 @@ namespace MultiThreadRun
                 {
                     if (!cmdQueue.IsEmpty) statusTextBox.AppendText("Error : can't start anymore processes!");
                     toggleControls();
+
+                    cmdQueue = null;
+                    processes = null;
                     timer.Enabled = false;
                 }
             };
@@ -60,6 +64,7 @@ namespace MultiThreadRun
             }
             doMoreCmd(null, null);
 
+            endCheckCount = 0;
             timer.Enabled = true;
         }
 
@@ -87,12 +92,13 @@ namespace MultiThreadRun
                         {
                             processes[i].Exited -= doMoreCmd;
                             processes[i].Kill();
-                            processes[i].Refresh();
+                            processes[i].Dispose();
                         } catch (Exception) { }
             }
 
             toggleControls();
             cmdQueue = null;
+            processes = null;
         }
 
         private void useMemoryLimiterCheckBox_CheckedChanged(object sender, EventArgs e)
@@ -135,7 +141,7 @@ namespace MultiThreadRun
             fi.Close();
         }
 
-        private bool enoughMemoryForCmd (string cmd)
+        private ulong getRequiredMemory (string cmd)
         {
             Process getMemoryProcess = new Process();
             getMemoryProcess.StartInfo             = getProcessInfo(cmd);
@@ -144,49 +150,51 @@ namespace MultiThreadRun
             getMemoryProcess.Start();
             getMemoryProcess.WaitForExit();
 
-            if (getMemoryProcess.ExitCode != 0)
-            {
-                statusTextBox.AppendText("Memory limiter exited with error for : " + cmd + "\n");
-                return false;
-            }
-
-            ulong requiredMem  = ulong.Parse(getMemoryProcess.StandardOutput.ReadLine());
-            ulong availableMem = (new Microsoft.VisualBasic.Devices.ComputerInfo()).AvailablePhysicalMemory;
-
-            return requiredMem + ensuranceMem < availableMem;
+            if (getMemoryProcess.ExitCode != 0) return ulong.MaxValue;
+            return ulong.Parse(getMemoryProcess.StandardOutput.ReadLine());
         }
 
         private void doMoreCmd (object o,EventArgs e)
         {
             (o as Process)?.Refresh();
+            ulong freeMemory = (ulong)(new Microsoft.VisualBasic.Devices.ComputerInfo()).AvailablePhysicalMemory,
+                  requiredMemory = 0;
 
+            // Launch more commands
             lock (processes)
-                while (true)
+            {
+                for (int i = 0; i < processes.Length; ++i)
                 {
+                    // Check if thread is already running
+                    try
+                    {
+                        if (!processes[i].HasExited) continue;
+                    }
+                    catch (Exception) { }
+
+                    // Get new command
                     string cmd;
                     if (!cmdQueue.TryPeek(out cmd)) break;
-                    if (useMemoryLimiterCheckBox.Checked && !enoughMemoryForCmd(cmd)) break;
 
-                    bool stopFlag = true;
-                    for (int i = 0; i < processes.Length; ++i)
+                    bool useMemoryLimiter;
+                    lock (useMemoryLimiterCheckBox) useMemoryLimiter = useMemoryLimiterCheckBox.Checked;
+
+                    if (useMemoryLimiter)
                     {
-                        try
-                        {
-                            if (!processes[i].HasExited) continue;
-                        }
-                        catch (InvalidOperationException) { }
-
-                        lock (statusTextBox) statusTextBox.AppendText(cmd + "\n");
-                        processes[i].StartInfo = getProcessInfo(cmd);
-                        processes[i].Start();
-
-                        stopFlag = false;
-                        cmdQueue.TryDequeue(out cmd);
-                        break;
+                        requiredMemory = getRequiredMemory(cmd);
+                        if (requiredMemory + ensuranceMemory < freeMemory) break;
+                        freeMemory -= requiredMemory;
                     }
 
-                    if (stopFlag) break;
+                    // Launch command
+                    lock (statusTextBox) statusTextBox.AppendText(cmd + "\n");
+                    processes[i].StartInfo = getProcessInfo(cmd);
+                    processes[i].Start();
+
+                    cmdQueue.TryDequeue(out cmd);
+                    cmd = null;
                 }
+            }
         }
 
         private void toggleControls ()
