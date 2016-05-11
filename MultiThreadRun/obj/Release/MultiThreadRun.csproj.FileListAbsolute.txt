@@ -1,0 +1,9 @@
+C:\Users\lazyc\OneDrive\Software development\App\MultiThreadRun\MultiThreadRun\bin\Release\MultiThreadRun.exe.config
+C:\Users\lazyc\OneDrive\Software development\App\MultiThreadRun\MultiThreadRun\bin\Release\MultiThreadRun.exe
+C:\Users\lazyc\OneDrive\Software development\App\MultiThreadRun\MultiThreadRun\bin\Release\MultiThreadRun.pdb
+C:\Users\lazyc\OneDrive\Software development\App\MultiThreadRun\MultiThreadRun\obj\Release\MultiThreadRun.Form1.resources
+C:\Users\lazyc\OneDrive\Software development\App\MultiThreadRun\MultiThreadRun\obj\Release\MultiThreadRun.Properties.Resources.resources
+C:\Users\lazyc\OneDrive\Software development\App\MultiThreadRun\MultiThreadRun\obj\Release\MultiThreadRun.csproj.GenerateResource.Cache
+C:\Users\lazyc\OneDrive\Software development\App\MultiThreadRun\MultiThreadRun\obj\Release\MultiThreadRun.exe
+C:\Users\lazyc\OneDrive\Software development\App\MultiThreadRun\MultiThreadRun\obj\Release\MultiThreadRun.pdb
+C:\Users\lazyc\OneDrive\Software development\App\MultiThreadRun\MultiThreadRun\obj\Release\MultiThreadRun.csprojResolveAssemblyReference.cache
