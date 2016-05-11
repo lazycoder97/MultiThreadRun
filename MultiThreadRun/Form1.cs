@@ -182,7 +182,7 @@ namespace MultiThreadRun
                     if (useMemoryLimiter)
                     {
                         requiredMemory = getRequiredMemory(cmd);
-                        if (requiredMemory + ensuranceMemory < freeMemory) break;
+                        if (requiredMemory + ensuranceMemory > freeMemory) break;
                         freeMemory -= requiredMemory;
                     }
 
