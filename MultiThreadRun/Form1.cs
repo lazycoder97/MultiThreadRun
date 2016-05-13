@@ -202,6 +202,7 @@ namespace MultiThreadRun
             if (runButton.Visible)
             {
                 cmdPathTextBox.Enabled =
+                cmdFileBrowseButton.Enabled =
                 numThreadBox.Enabled =
                 useMemoryLimiterCheckBox.Enabled =
                 memoryLimiterPathBox.Enabled =
@@ -211,6 +212,7 @@ namespace MultiThreadRun
             } else
             {
                 cmdPathTextBox.Enabled =
+                cmdFileBrowseButton.Enabled =
                 numThreadBox.Enabled =
                 useMemoryLimiterCheckBox.Enabled =
                 runButton.Visible =
