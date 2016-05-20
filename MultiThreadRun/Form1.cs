@@ -1,69 +1,59 @@
 ﻿using System;
-using System.Windows.Forms;
-using System.IO;
-using System.Diagnostics;
 using System.Collections.Concurrent;
-using System.Threading;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Windows.Forms;
 
 namespace MultiThreadRun
 {
     public partial class Form1 : Form
     {
-        const ulong ensuranceMemory = 314572800;   // The amount of available memory to leave out
+        private const ulong ensuranceMemory = 314572800;                // The amount of available memory to leave out
 
-        ConcurrentQueue<string> cmdQueue;
-        Process[] processes;
-        string workingDir;
-        int endCheckCount;
+        private ConcurrentDictionary<Process, DataGridViewRow> cmdRow;  // statusTable's row corresponding to process
+        private ConcurrentQueue<string> cmdQueue;                       // The command queue
+        private Process[] processes;                                    // List of processes to execute commands
+        private string workingDir;                                      // Path to the working directory
+        private int endCheckCount;                                      // ---
 
         public Form1()
         {
             InitializeComponent();
 
+            // Set the number of computer thread as the maximum allowed paralel run
             numThreadBox.Maximum = Environment.ProcessorCount - 1;
-
-            timer.Tick += delegate
-            {
-                lock (processes)
-                    for (int i = 0; i < processes.Length; ++i)
-                        if (!processes[i].HasExited) return;
-
-                ++endCheckCount;
-                if (endCheckCount == 3)
-                {
-                    if (!cmdQueue.IsEmpty) statusTextBox.AppendText("Error : can't start anymore processes!");
-                    toggleControls();
-
-                    cmdQueue = null;
-                    processes = null;
-                    timer.Enabled = false;
-                }
-            };
         }
 
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            lock (runButton)
-                if (!runButton.Visible) stopButton_Click(null, null);
+            // Stop all processes before closing
+            if (!runButton.Visible) stopButton_Click(null, null);
         }
 
         private void RunButton_Click(object sender, EventArgs e)
         {
+            // Disable controls and reset statusTable
             toggleControls();
-            statusTextBox.Text = "";
+            statusTable.Rows.Clear();
 
+            // Initialize
             loadCmdQueue(cmdPathTextBox.Text);
             processes  = new Process[(int)numThreadBox.Value];
+            cmdRow = new ConcurrentDictionary<Process, DataGridViewRow>();
             workingDir = Path.GetDirectoryName(cmdPathTextBox.Text);
-            
+
             for (int i = 0; i < processes.Length; ++i)
             {
                 processes[i] = new Process();
                 processes[i].EnableRaisingEvents = true;
                 processes[i].Exited += doMoreCmd;
             }
+
+            // Start processes
             doMoreCmd(null, null);
 
+            // Start timer
             endCheckCount = 0;
             timer.Enabled = true;
         }
@@ -82,8 +72,10 @@ namespace MultiThreadRun
 
         private void stopButton_Click(object sender, EventArgs e)
         {
+            // Disable timer
             timer.Enabled = false;
 
+            // Kill all processes still running
             lock (processes)
             {
                 for (int i = 0; i < processes.Length; ++i)
@@ -93,17 +85,51 @@ namespace MultiThreadRun
                             processes[i].Exited -= doMoreCmd;
                             processes[i].Kill();
                             processes[i].Dispose();
-                        } catch (Exception) { }
+
+                            DataGridViewRow row;
+                            cmdRow.TryRemove(processes[i], out row);
+                            row.DefaultCellStyle.BackColor = Color.OrangeRed;
+                        }
+                        catch (Exception) { }
             }
 
+            // Restore initial state of form
             toggleControls();
             cmdQueue = null;
+            cmdRow = null;
             processes = null;
         }
 
         private void useMemoryLimiterCheckBox_CheckedChanged(object sender, EventArgs e)
         {
             memoryLimiterBrowseButton.Enabled = memoryLimiterPathBox.Enabled ^= true;
+        }
+
+        private void timer_Tick(object sender, EventArgs e)
+        {
+            // Check if there is still a running process
+            lock (processes)
+                for (int i = 0; i < processes.Length; ++i)
+                    if (!processes[i].HasExited) { endCheckCount = 0; return; }
+
+            ++endCheckCount;
+            if (endCheckCount == 3)
+            {
+                // If there is still commands left
+                if (!cmdQueue.IsEmpty) MessageBox.Show("Error : can't start anymore processes!");
+
+                // Restore initial state of form
+                toggleControls();
+                cmdQueue = null;
+                cmdRow = null;
+                processes = null;
+                timer.Enabled = false;
+            }
+        }
+
+        private void statusTable_SelectionChanged(object sender, EventArgs e)
+        {
+            statusTable.ClearSelection();
         }
 
         private ProcessStartInfo getProcessInfo(string cmd)
@@ -141,8 +167,9 @@ namespace MultiThreadRun
             fi.Close();
         }
 
-        private ulong getRequiredMemory (string cmd)
+        private ulong getRequiredMemory(string cmd)
         {
+            // Run memory estimator
             Process getMemoryProcess = new Process();
             getMemoryProcess.StartInfo             = getProcessInfo(cmd);
             getMemoryProcess.StartInfo.FileName    = memoryLimiterPathBox.Text;
@@ -150,15 +177,32 @@ namespace MultiThreadRun
             getMemoryProcess.Start();
             getMemoryProcess.WaitForExit();
 
+            // Check for errors and return
             if (getMemoryProcess.ExitCode != 0) return ulong.MaxValue;
-            return ulong.Parse(getMemoryProcess.StandardOutput.ReadLine());
+            try
+            {
+                return ulong.Parse(getMemoryProcess.StandardOutput.ReadLine());
+            }
+            catch (Exception)
+            {
+                return ulong.MaxValue;
+            }
         }
 
-        private void doMoreCmd (object o,EventArgs e)
+        private void doMoreCmd(object o, EventArgs e)
         {
-            (o as Process)?.Refresh();
-            ulong freeMemory = (ulong)(new Microsoft.VisualBasic.Devices.ComputerInfo()).AvailablePhysicalMemory,
-                  requiredMemory = 0;
+            // Mark as done in statusTable
+            if (o != null)
+            {
+                (o as Process).Refresh();
+
+                DataGridViewRow row;
+                cmdRow.TryRemove(o as Process, out row);
+                row.DefaultCellStyle.BackColor = Color.LimeGreen;
+            }
+
+            // Get current available memory
+            ulong freeMemory = (new Microsoft.VisualBasic.Devices.ComputerInfo()).AvailablePhysicalMemory;
 
             // Launch more commands
             lock (processes)
@@ -175,29 +219,35 @@ namespace MultiThreadRun
                     // Get new command
                     string cmd;
                     if (!cmdQueue.TryPeek(out cmd)) break;
-
-                    bool useMemoryLimiter;
-                    lock (useMemoryLimiterCheckBox) useMemoryLimiter = useMemoryLimiterCheckBox.Checked;
-
-                    if (useMemoryLimiter)
+                    
+                    if (useMemoryLimiterCheckBox.Checked)
                     {
-                        requiredMemory = getRequiredMemory(cmd);
+                        ulong requiredMemory = getRequiredMemory(cmd);
                         if (requiredMemory + ensuranceMemory > freeMemory) break;
                         freeMemory -= requiredMemory;
                     }
 
+                    // Add new row to statusTable
+                    lock (statusTable)
+                    {
+                        var newRow = statusTable.Rows[statusTable.Rows.Add()];
+                        newRow.Cells[0].Value = cmd;
+                        newRow.DefaultCellStyle.BackColor = Color.Gold;
+                        cmdRow[processes[i]] = newRow;
+                    }
+
                     // Launch command
-                    lock (statusTextBox) statusTextBox.AppendText(cmd + "\n");
                     processes[i].StartInfo = getProcessInfo(cmd);
                     processes[i].Start();
 
+                    // Get command out of queue
                     cmdQueue.TryDequeue(out cmd);
                     cmd = null;
                 }
             }
         }
 
-        private void toggleControls ()
+        private void toggleControls()
         {
             if (runButton.Visible)
             {
@@ -209,7 +259,8 @@ namespace MultiThreadRun
                 memoryLimiterBrowseButton.Enabled =
                 runButton.Visible =
                 false;
-            } else
+            }
+            else
             {
                 cmdPathTextBox.Enabled =
                 cmdFileBrowseButton.Enabled =

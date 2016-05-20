@@ -34,13 +34,15 @@
             this.numThreadBox = new System.Windows.Forms.NumericUpDown();
             this.cmdFileBrowseButton = new System.Windows.Forms.Button();
             this.fileOpenner = new System.Windows.Forms.OpenFileDialog();
-            this.statusTextBox = new System.Windows.Forms.RichTextBox();
             this.stopButton = new System.Windows.Forms.Button();
             this.timer = new System.Windows.Forms.Timer(this.components);
             this.memoryLimiterPathBox = new System.Windows.Forms.TextBox();
             this.useMemoryLimiterCheckBox = new System.Windows.Forms.CheckBox();
             this.memoryLimiterBrowseButton = new System.Windows.Forms.Button();
+            this.statusTable = new System.Windows.Forms.DataGridView();
+            this.commandColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)(this.numThreadBox)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.statusTable)).BeginInit();
             this.SuspendLayout();
             // 
             // cmdPathTextBox
@@ -87,17 +89,6 @@
             this.cmdFileBrowseButton.UseVisualStyleBackColor = true;
             this.cmdFileBrowseButton.Click += new System.EventHandler(this.cmdFileBrowseButton_Click);
             // 
-            // statusTextBox
-            // 
-            this.statusTextBox.BackColor = System.Drawing.SystemColors.ButtonHighlight;
-            this.statusTextBox.Location = new System.Drawing.Point(12, 125);
-            this.statusTextBox.Name = "statusTextBox";
-            this.statusTextBox.ReadOnly = true;
-            this.statusTextBox.Size = new System.Drawing.Size(481, 310);
-            this.statusTextBox.TabIndex = 5;
-            this.statusTextBox.Text = "";
-            this.statusTextBox.WordWrap = false;
-            // 
             // stopButton
             // 
             this.stopButton.Location = new System.Drawing.Point(418, 39);
@@ -111,6 +102,7 @@
             // timer
             // 
             this.timer.Interval = 1000;
+            this.timer.Tick += new System.EventHandler(this.timer_Tick);
             // 
             // memoryLimiterPathBox
             // 
@@ -142,15 +134,44 @@
             this.memoryLimiterBrowseButton.UseVisualStyleBackColor = true;
             this.memoryLimiterBrowseButton.Click += new System.EventHandler(this.memoryLimiterBrowseButton_Click);
             // 
+            // statusTable
+            // 
+            this.statusTable.AllowUserToAddRows = false;
+            this.statusTable.AllowUserToDeleteRows = false;
+            this.statusTable.AllowUserToResizeColumns = false;
+            this.statusTable.AllowUserToResizeRows = false;
+            this.statusTable.BackgroundColor = System.Drawing.SystemColors.ControlLightLight;
+            this.statusTable.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.statusTable.ColumnHeadersVisible = false;
+            this.statusTable.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
+            this.commandColumn});
+            this.statusTable.Location = new System.Drawing.Point(12, 125);
+            this.statusTable.Name = "statusTable";
+            this.statusTable.ReadOnly = true;
+            this.statusTable.RowHeadersVisible = false;
+            this.statusTable.RowTemplate.Height = 24;
+            this.statusTable.Size = new System.Drawing.Size(481, 310);
+            this.statusTable.TabIndex = 10;
+            this.statusTable.SelectionChanged += new System.EventHandler(this.statusTable_SelectionChanged);
+            // 
+            // commandColumn
+            // 
+            this.commandColumn.HeaderText = "Command";
+            this.commandColumn.Name = "commandColumn";
+            this.commandColumn.ReadOnly = true;
+            this.commandColumn.Resizable = System.Windows.Forms.DataGridViewTriState.False;
+            this.commandColumn.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.NotSortable;
+            this.commandColumn.Width = 478;
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(505, 447);
+            this.Controls.Add(this.statusTable);
             this.Controls.Add(this.memoryLimiterBrowseButton);
             this.Controls.Add(this.useMemoryLimiterCheckBox);
             this.Controls.Add(this.memoryLimiterPathBox);
-            this.Controls.Add(this.statusTextBox);
             this.Controls.Add(this.cmdFileBrowseButton);
             this.Controls.Add(this.numThreadBox);
             this.Controls.Add(this.runButton);
@@ -161,6 +182,7 @@
             this.Text = "MultiThreadRun";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
             ((System.ComponentModel.ISupportInitialize)(this.numThreadBox)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.statusTable)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -173,12 +195,13 @@
         private System.Windows.Forms.NumericUpDown numThreadBox;
         private System.Windows.Forms.Button cmdFileBrowseButton;
         private System.Windows.Forms.OpenFileDialog fileOpenner;
-        private System.Windows.Forms.RichTextBox statusTextBox;
         private System.Windows.Forms.Button stopButton;
         private System.Windows.Forms.Timer timer;
         private System.Windows.Forms.TextBox memoryLimiterPathBox;
         private System.Windows.Forms.CheckBox useMemoryLimiterCheckBox;
         private System.Windows.Forms.Button memoryLimiterBrowseButton;
+        private System.Windows.Forms.DataGridView statusTable;
+        private System.Windows.Forms.DataGridViewTextBoxColumn commandColumn;
     }
 }
 
