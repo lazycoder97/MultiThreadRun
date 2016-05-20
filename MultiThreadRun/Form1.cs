@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace MultiThreadRun
@@ -35,7 +36,7 @@ namespace MultiThreadRun
         {
             // Disable controls and reset statusTable
             toggleControls();
-            statusTable.Rows.Clear();
+            runOnUIThread(() => statusTable.Rows.Clear());
 
             // Initialize
             loadCmdQueue(cmdPathTextBox.Text);
@@ -79,7 +80,7 @@ namespace MultiThreadRun
             lock (processes)
             {
                 for (int i = 0; i < processes.Length; ++i)
-                    if (!processes[i].HasExited)
+                    if (isRunning(processes[i]))
                         try
                         {
                             processes[i].Exited -= doMoreCmd;
@@ -88,7 +89,7 @@ namespace MultiThreadRun
 
                             DataGridViewRow row;
                             cmdRow.TryRemove(processes[i], out row);
-                            row.DefaultCellStyle.BackColor = Color.OrangeRed;
+                            runOnUIThread(() => row.DefaultCellStyle.BackColor = Color.OrangeRed);
                         }
                         catch (Exception) { }
             }
@@ -110,7 +111,7 @@ namespace MultiThreadRun
             // Check if there is still a running process
             lock (processes)
                 for (int i = 0; i < processes.Length; ++i)
-                    if (!processes[i].HasExited) { endCheckCount = 0; return; }
+                    if (isRunning(processes[i])) { endCheckCount = 0; return; }
 
             ++endCheckCount;
             if (endCheckCount == 3)
@@ -157,36 +158,44 @@ namespace MultiThreadRun
         {
             cmdQueue = new ConcurrentQueue<string>();
 
-            var fi = new StreamReader(path);
-            while (!fi.EndOfStream)
+            try
             {
-                string cmd = fi.ReadLine();
-                if (!string.IsNullOrEmpty(cmd)) cmdQueue.Enqueue(cmd);
-            }
+                var fi = new StreamReader(path);
+                while (!fi.EndOfStream)
+                {
+                    string cmd = fi.ReadLine();
+                    if (!string.IsNullOrEmpty(cmd)) cmdQueue.Enqueue(cmd);
+                }
 
-            fi.Close();
+                fi.Close();
+            } catch (Exception ex) { MessageBox.Show(ex.Message); }
         }
 
         private ulong getRequiredMemory(string cmd)
         {
-            // Run memory estimator
+            // Set memory estimator
             Process getMemoryProcess = new Process();
-            getMemoryProcess.StartInfo             = getProcessInfo(cmd);
-            getMemoryProcess.StartInfo.FileName    = memoryLimiterPathBox.Text;
+            getMemoryProcess.StartInfo = getProcessInfo(cmd);
+            getMemoryProcess.StartInfo.FileName = memoryLimiterPathBox.Text;
             getMemoryProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            getMemoryProcess.Start();
-            getMemoryProcess.WaitForExit();
+
+            // Run memory estimator
+            try
+            {
+                getMemoryProcess.Start();
+                getMemoryProcess.WaitForExit();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+                return ulong.MaxValue;
+            }
 
             // Check for errors and return
             if (getMemoryProcess.ExitCode != 0) return ulong.MaxValue;
-            try
-            {
-                return ulong.Parse(getMemoryProcess.StandardOutput.ReadLine());
-            }
-            catch (Exception)
-            {
-                return ulong.MaxValue;
-            }
+
+            try { return ulong.Parse(getMemoryProcess.StandardOutput.ReadLine()); }
+            catch (Exception) { return ulong.MaxValue; }
         }
 
         private void doMoreCmd(object o, EventArgs e)
@@ -198,7 +207,7 @@ namespace MultiThreadRun
 
                 DataGridViewRow row;
                 cmdRow.TryRemove(o as Process, out row);
-                row.DefaultCellStyle.BackColor = Color.LimeGreen;
+                runOnUIThread(() => row.DefaultCellStyle.BackColor = Color.LimeGreen);
             }
 
             // Get current available memory
@@ -210,11 +219,7 @@ namespace MultiThreadRun
                 for (int i = 0; i < processes.Length; ++i)
                 {
                     // Check if thread is already running
-                    try
-                    {
-                        if (!processes[i].HasExited) continue;
-                    }
-                    catch (Exception) { }
+                    if (isRunning(processes[i])) continue;
 
                     // Get new command
                     string cmd;
@@ -228,13 +233,13 @@ namespace MultiThreadRun
                     }
 
                     // Add new row to statusTable
-                    lock (statusTable)
+                    runOnUIThread(() =>
                     {
                         var newRow = statusTable.Rows[statusTable.Rows.Add()];
                         newRow.Cells[0].Value = cmd;
                         newRow.DefaultCellStyle.BackColor = Color.Gold;
                         cmdRow[processes[i]] = newRow;
-                    }
+                    });
 
                     // Launch command
                     processes[i].StartInfo = getProcessInfo(cmd);
@@ -249,28 +254,43 @@ namespace MultiThreadRun
 
         private void toggleControls()
         {
-            if (runButton.Visible)
+            runOnUIThread(() =>
             {
-                cmdPathTextBox.Enabled =
-                cmdFileBrowseButton.Enabled =
-                numThreadBox.Enabled =
-                useMemoryLimiterCheckBox.Enabled =
-                memoryLimiterPathBox.Enabled =
-                memoryLimiterBrowseButton.Enabled =
-                runButton.Visible =
-                false;
-            }
-            else
-            {
-                cmdPathTextBox.Enabled =
-                cmdFileBrowseButton.Enabled =
-                numThreadBox.Enabled =
-                useMemoryLimiterCheckBox.Enabled =
-                runButton.Visible =
-                true;
+                if (runButton.Visible)
+                {
+                    cmdPathTextBox.Enabled =
+                    cmdFileBrowseButton.Enabled =
+                    numThreadBox.Enabled =
+                    useMemoryLimiterCheckBox.Enabled =
+                    memoryLimiterPathBox.Enabled =
+                    memoryLimiterBrowseButton.Enabled =
+                    runButton.Visible =
+                    false;
+                }
+                else
+                {
+                    cmdPathTextBox.Enabled =
+                    cmdFileBrowseButton.Enabled =
+                    numThreadBox.Enabled =
+                    useMemoryLimiterCheckBox.Enabled =
+                    runButton.Visible =
+                    true;
 
-                memoryLimiterPathBox.Enabled = memoryLimiterBrowseButton.Enabled = useMemoryLimiterCheckBox.Checked;
-            }
+                    memoryLimiterPathBox.Enabled = memoryLimiterBrowseButton.Enabled = useMemoryLimiterCheckBox.Checked;
+                }
+            });
+        }
+
+        private void runOnUIThread(Action act)
+        {
+            this.Invoke(act);
+        }
+
+        private bool isRunning(Process process)
+        {
+            try { Process.GetProcessById(process.Id); }
+            catch (Exception) { return false; }
+            return true;
         }
     }
 }
